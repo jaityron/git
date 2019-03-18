@@ -589,6 +589,28 @@ test_expect_success 'excessive subject' '
 	ls patches/0004-This-is-an-excessively-long-subject-line-for-a-messa.patch
 '
 
+test_expect_success 'failure to write cover-letter aborts gracefully' '
+	test_when_finished "rmdir 0000-cover-letter.patch" &&
+	mkdir 0000-cover-letter.patch &&
+	test_must_fail git format-patch --no-renames --cover-letter -1
+'
+
+test_expect_success 'refrain from overwriting a patch with --no-clobber' '
+	rm -f 000[01]-*.patch &&
+	git format-patch --no-clobber --no-renames --cover-letter -1 >filelist &&
+	# empty the files output by the command ...
+	for f in $(cat filelist)
+	do
+		: >"$f" || return 1
+	done &&
+	test_must_fail git format-patch --no-clobber --cover-letter --no-renames -1 &&
+	# ... and make sure they stay empty
+	for f in $(cat filelist)
+	do
+		! test -s "$f" || return 1
+	done
+'
+
 test_expect_success 'cover-letter inherits diff options' '
 	git mv file foo &&
 	git commit -m foo &&

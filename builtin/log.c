@@ -517,7 +517,7 @@ static int show_blob_object(const struct object_id *oid, struct rev_info *rev, c
 	if (get_oid_with_context(the_repository, obj_name,
 				 GET_OID_RECORD_PATH,
 				 &oidc, &obj_context))
-		die(_("Not a valid object name %s"), obj_name);
+		die(_("not a valid object name %s"), obj_name);
 	if (!obj_context.path ||
 	    !textconv_object(the_repository, obj_context.path,
 			     obj_context.mode, &oidc, 1, &buf, &size)) {
@@ -541,7 +541,7 @@ static int show_tag_object(const struct object_id *oid, struct rev_info *rev)
 	int offset = 0;
 
 	if (!buf)
-		return error(_("Could not read object %s"), oid_to_hex(oid));
+		return error(_("could not read object %s"), oid_to_hex(oid));
 
 	assert(type == OBJ_TAG);
 	while (offset < size && buf[offset] != '\n') {
@@ -635,7 +635,7 @@ int cmd_show(int argc, const char **argv, const char *prefix)
 				break;
 			o = parse_object(the_repository, &t->tagged->oid);
 			if (!o)
-				ret = error(_("Could not read object %s"),
+				ret = error(_("could not read object %s"),
 					    oid_to_hex(&t->tagged->oid));
 			objects[i].item = o;
 			i--;
@@ -660,7 +660,7 @@ int cmd_show(int argc, const char **argv, const char *prefix)
 			ret = cmd_log_walk(&rev);
 			break;
 		default:
-			ret = error(_("Unknown type: %d"), o->type);
+			ret = error(_("unknown type: %d"), o->type);
 		}
 	}
 	free(objects);
@@ -871,8 +871,16 @@ static int git_format_config(const char *var, const char *value, void *cb)
 static const char *output_directory = NULL;
 static int outdir_offset;
 
+static FILE *fopen_excl(const char *filename)
+{
+	int fd = open(filename, O_CREAT | O_EXCL | O_WRONLY, 0666);
+	if (fd < 0)
+		return NULL;
+	return fdopen(fd, "w");
+}
+
 static int open_next_file(struct commit *commit, const char *subject,
-			 struct rev_info *rev, int quiet)
+			  struct rev_info *rev, int quiet, int clobber)
 {
 	struct strbuf filename = STRBUF_INIT;
 	int suffix_len = strlen(rev->patch_suffix) + 1;
@@ -897,8 +905,13 @@ static int open_next_file(struct commit *commit, const char *subject,
 	if (!quiet)
 		printf("%s\n", filename.buf + outdir_offset);
 
-	if ((rev->diffopt.file = fopen(filename.buf, "w")) == NULL) {
-		error_errno(_("Cannot open patch file %s"), filename.buf);
+	if (clobber)
+		rev->diffopt.file = fopen(filename.buf, "w");
+	else
+		rev->diffopt.file = fopen_excl(filename.buf);
+
+	if (!rev->diffopt.file) {
+		error_errno(_("cannot open patch file %s"), filename.buf);
 		strbuf_release(&filename);
 		return -1;
 	}
@@ -915,7 +928,7 @@ static void get_patch_ids(struct rev_info *rev, struct patch_ids *ids)
 	unsigned flags1, flags2;
 
 	if (rev->pending.nr != 2)
-		die(_("Need exactly one range."));
+		die(_("need exactly one range"));
 
 	o1 = rev->pending.objects[0].item;
 	o2 = rev->pending.objects[1].item;
@@ -925,7 +938,7 @@ static void get_patch_ids(struct rev_info *rev, struct patch_ids *ids)
 	c2 = lookup_commit_reference(the_repository, &o2->oid);
 
 	if ((flags1 & UNINTERESTING) == (flags2 & UNINTERESTING))
-		die(_("Not a range."));
+		die(_("not a range"));
 
 	init_patch_ids(the_repository, ids);
 
@@ -1034,7 +1047,8 @@ static void make_cover_letter(struct rev_info *rev, int use_stdout,
 			      struct commit *origin,
 			      int nr, struct commit **list,
 			      const char *branch_name,
-			      int quiet)
+			      int quiet,
+			      int clobber)
 {
 	const char *committer;
 	const char *body = "*** SUBJECT HERE ***\n\n*** BLURB HERE ***\n";
@@ -1048,13 +1062,14 @@ static void make_cover_letter(struct rev_info *rev, int use_stdout,
 	struct commit *head = list[0];
 
 	if (!cmit_fmt_is_mail(rev->commit_format))
-		die(_("Cover letter needs email format"));
+		die(_("cover letter needs email format"));
 
 	committer = git_committer_info(0);
 
 	if (!use_stdout &&
-	    open_next_file(NULL, rev->numbered_files ? NULL : "cover-letter", rev, quiet))
-		return;
+	    open_next_file(NULL, rev->numbered_files ? NULL : "cover-letter",
+			   rev, quiet, clobber))
+		die(_("failed to create cover-letter file"));
 
 	log_write_email_headers(rev, head, &pp.after_subject, &need_8bit_cte, 0);
 
@@ -1218,7 +1233,7 @@ static int output_directory_callback(const struct option *opt, const char *arg,
 	const char **dir = (const char **)opt->value;
 	BUG_ON_OPT_NEG(unset);
 	if (*dir)
-		die(_("Two output directories?"));
+		die(_("two output directories?"));
 	*dir = arg;
 	return 0;
 }
@@ -1329,7 +1344,7 @@ static struct commit *get_base_commit(const char *base_commit,
 	if (base_commit && strcmp(base_commit, "auto")) {
 		base = lookup_commit_reference_by_name(base_commit);
 		if (!base)
-			die(_("Unknown commit %s"), base_commit);
+			die(_("unknown commit %s"), base_commit);
 	} else if ((base_commit && !strcmp(base_commit, "auto")) || base_auto) {
 		struct branch *curr_branch = branch_get(NULL);
 		const char *upstream = branch_get_upstream(curr_branch, NULL);
@@ -1339,18 +1354,18 @@ static struct commit *get_base_commit(const char *base_commit,
 			struct object_id oid;
 
 			if (get_oid(upstream, &oid))
-				die(_("Failed to resolve '%s' as a valid ref."), upstream);
+				die(_("failed to resolve '%s' as a valid ref"), upstream);
 			commit = lookup_commit_or_die(&oid, "upstream base");
 			base_list = get_merge_bases_many(commit, total, list);
 			/* There should be one and only one merge base. */
 			if (!base_list || base_list->next)
-				die(_("Could not find exact merge base."));
+				die(_("could not find exact merge base"));
 			base = base_list->item;
 			free_commit_list(base_list);
 		} else {
-			die(_("Failed to get upstream, if you want to record base commit automatically,\n"
+			die(_("failed to get upstream, if you want to record base commit automatically,\n"
 			      "please use git branch --set-upstream-to to track a remote branch.\n"
-			      "Or you could specify base commit by --base=<base-commit-id> manually."));
+			      "Or you could specify base commit by --base=<base-commit-id> manually"));
 		}
 	}
 
@@ -1368,7 +1383,7 @@ static struct commit *get_base_commit(const char *base_commit,
 			struct commit_list *merge_base;
 			merge_base = get_merge_bases(rev[2 * i], rev[2 * i + 1]);
 			if (!merge_base || merge_base->next)
-				die(_("Failed to find exact merge base"));
+				die(_("failed to find exact merge base"));
 
 			rev[i] = merge_base->item;
 		}
@@ -1517,6 +1532,7 @@ int cmd_format_patch(int argc, const char **argv, const char *prefix)
 	struct strbuf buf = STRBUF_INIT;
 	int use_patch_format = 0;
 	int quiet = 0;
+	int clobber = 1;
 	int reroll_count = -1;
 	char *branch_name = NULL;
 	char *base_commit = NULL;
@@ -1603,6 +1619,8 @@ int cmd_format_patch(int argc, const char **argv, const char *prefix)
 		OPT__QUIET(&quiet, N_("don't print the patch filenames")),
 		OPT_BOOL(0, "progress", &show_progress,
 			 N_("show progress while generating patches")),
+		OPT_BOOL(0, "clobber", &clobber,
+			 N_("allow overwriting output files")),
 		OPT_CALLBACK(0, "interdiff", &idiff_prev, N_("rev"),
 			     N_("show changes against <rev> in cover letter or single patch"),
 			     parse_opt_object_name),
@@ -1747,7 +1765,7 @@ int cmd_format_patch(int argc, const char **argv, const char *prefix)
 		if (use_stdout)
 			die(_("standard output, or directory, which one?"));
 		if (mkdir(output_directory, 0777) < 0 && errno != EEXIST)
-			die_errno(_("Could not create directory '%s'"),
+			die_errno(_("could not create directory '%s'"),
 				  output_directory);
 	}
 
@@ -1893,7 +1911,8 @@ int cmd_format_patch(int argc, const char **argv, const char *prefix)
 		if (thread)
 			gen_message_id(&rev, "cover");
 		make_cover_letter(&rev, use_stdout,
-				  origin, nr, list, branch_name, quiet);
+				  origin, nr, list, branch_name,
+				  quiet, clobber);
 		print_bases(&bases, rev.diffopt.file);
 		print_signature(rev.diffopt.file);
 		total++;
@@ -1948,8 +1967,9 @@ int cmd_format_patch(int argc, const char **argv, const char *prefix)
 		}
 
 		if (!use_stdout &&
-		    open_next_file(rev.numbered_files ? NULL : commit, NULL, &rev, quiet))
-			die(_("Failed to create output files"));
+		    open_next_file(rev.numbered_files ? NULL : commit, NULL,
+				   &rev, quiet, clobber))
+			die(_("failed to create output files"));
 		shown = log_tree_commit(&rev, commit);
 		free_commit_buffer(the_repository->parsed_objects,
 				   commit);
@@ -2073,9 +2093,9 @@ int cmd_cherry(int argc, const char **argv, const char *prefix)
 	revs.max_parents = 1;
 
 	if (add_pending_commit(head, &revs, 0))
-		die(_("Unknown commit %s"), head);
+		die(_("unknown commit %s"), head);
 	if (add_pending_commit(upstream, &revs, UNINTERESTING))
-		die(_("Unknown commit %s"), upstream);
+		die(_("unknown commit %s"), upstream);
 
 	/* Don't say anything if head and upstream are the same. */
 	if (revs.pending.nr == 2) {
@@ -2087,7 +2107,7 @@ int cmd_cherry(int argc, const char **argv, const char *prefix)
 	get_patch_ids(&revs, &ids);
 
 	if (limit && add_pending_commit(limit, &revs, UNINTERESTING))
-		die(_("Unknown commit %s"), limit);
+		die(_("unknown commit %s"), limit);
 
 	/* reverse the list of commits */
 	if (prepare_revision_walk(&revs))
