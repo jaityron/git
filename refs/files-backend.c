@@ -3042,8 +3042,14 @@ static int files_reflog_expire(struct ref_store *ref_store,
 	 * The reflog file is locked by holding the lock on the
 	 * reference itself, plus we might need to update the
 	 * reference if --updateref was specified:
+	 *
+	 * We don't pass down the oid here because we'd like to be
+	 * tolerant to the OID of the ref having changed, and to
+	 * gracefully handle the case where it's been deleted (see oid
+	 * -> mustexist -> RESOLVE_REF_READING in
+	 * lock_ref_oid_basic()) ...
 	 */
-	lock = lock_ref_oid_basic(refs, refname, oid,
+	lock = lock_ref_oid_basic(refs, refname, NULL,
 				  NULL, NULL, REF_NO_DEREF,
 				  &type, &err);
 	if (!lock) {
@@ -3051,6 +3057,13 @@ static int files_reflog_expire(struct ref_store *ref_store,
 		strbuf_release(&err);
 		return -1;
 	}
+	/*
+	 * When refs are deleted their reflog is deleted before the
+	 * loose ref is deleted. This catches that case, i.e. when
+	 * racing against a ref deletion lock_ref_oid_basic() will
+	 * have acquired a lock on the now-deleted ref, but here's
+	 * where we find out it has no reflog anymore.
+	 */
 	if (!refs_reflog_exists(ref_store, refname)) {
 		unlock_ref(lock);
 		return 0;
