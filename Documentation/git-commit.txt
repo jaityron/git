@@ -56,7 +56,7 @@ summary of what is included by any of the above for the next
 commit by giving the same set of parameters (options and paths).
 
 If you make a commit and then find a mistake immediately after
-that, you can recover from it with 'git reset'.
+that, you can recover from it with 'git restore' or 'git reset'.
 
 
 OPTIONS
@@ -359,7 +359,7 @@ When recording your own work, the contents of modified files in
 your working tree are temporarily stored to a staging area
 called the "index" with 'git add'.  A file can be
 reverted back, only in the index but not in the working tree,
-to that of the last commit with `git reset HEAD -- <file>`,
+to that of the last commit with `git restore --index <file>`,
 which effectively reverts 'git add' and prevents the changes to
 this file from participating in the next commit.  After building
 the state to be committed incrementally with these commands,

@@ -1,0 +1,172 @@
+git-restore(1)
+==============
+
+NAME
+----
+git-restore - Restore working tree files
+
+SYNOPSIS
+--------
+[verse]
+'git restore' [<options>] [--source=<revision>] <pathspec>...
+'git restore' (-p|--patch) [--source=<revision>] [<pathspec>...]
+
+DESCRIPTION
+-----------
+Restore paths in the working tree by replacing with the contents in
+the restore source or remove if the paths do not exist in the restore
+source. The source is by default the index but could be from a commit.
+The command can also optionally restore content in the index from a
+commit.
+
+When a `<revision>` is given, the paths that match the `<pathspec>` are
+updated both in the index and in the working tree.
+
+OPTIONS
+-------
+-s<tree>::
+--source=<tree>::
+	Restore the working tree files with the content from the given
+	tree or any revision that leads to a tree (e.g. a commit or a
+	branch).
+
+-p::
+--patch::
+	Interactively select hunks in the difference between the
+	`<revision>` (or the index, if unspecified) and the working
+	tree. See the ``Interactive Mode'' section of linkgit:git-add[1]
+	to learn how to operate the `--patch` mode.
+
+-W::
+--worktree::
+-I::
+--index::
+	Specify the restore location. If neither option is specified,
+	by default the working tree is restored. If `--index` is
+	specified without `--worktree` or `--source`, `--source=HEAD`
+	is implied. These options only make sense to use with
+	`--source`.
+
+-q::
+--quiet::
+	Quiet, suppress feedback messages.
+
+--progress::
+--no-progress::
+	Progress status is reported on the standard error stream
+	by default when it is attached to a terminal, unless `--quiet`
+	is specified. This flag enables progress reporting even if not
+	attached to a terminal, regardless of `--quiet`.
+
+-f::
+--force::
+	If `--source` is not specified, unmerged entries are left alone
+	and will not fail the operation. Unmerged entries are always
+	replaced if `--source` is specified, regardless of `--force`.
+
+--ours::
+--theirs::
+	Check out stage #2 ('ours') or #3 ('theirs') for unmerged
+	paths.
++
+Note that during `git rebase` and `git pull --rebase`, 'ours' and
+'theirs' may appear swapped. See the explanation of the same options
+in linkgit:git-checkout[1] for details.
+
+-m::
+--merge::
+	Recreate the conflicted merge in the specified paths.
+
+--conflict=<style>::
+	The same as `--merge` option above, but changes the way the
+	conflicting hunks are presented, overriding the merge.conflictStyle
+	configuration variable.  Possible values are "merge" (default)
+	and "diff3" (in addition to what is shown by "merge" style,
+	shows the original contents).
+
+--ignore-skip-worktree-bits::
+	In sparse checkout mode, by default update only entries
+	matched by `<pathspec>` and sparse patterns in
+	$GIT_DIR/info/sparse-checkout. This option ignores the sparse
+	patterns and unconditionally restores any files in `<pathspec>`.
+
+--recurse-submodules::
+--no-recurse-submodules::
+	Using `--recurse-submodules` will update the content of all initialized
+	submodules according to the commit recorded in the superproject. If
+	local modifications in a submodule would be overwritten the checkout
+	will fail unless `-f` is used. If nothing (or `--no-recurse-submodules`)
+	is used, the work trees of submodules will not be updated.
+	Just like linkgit:git-submodule[1], this will detach the
+	submodules HEAD.
+
+--overlay::
+--no-overlay::
+	In overlay mode, `git checkout` never removes files from the
+	index or the working tree. In no-overlay mode, files that
+	appear in the index and working tree, but not in `--source` tree
+	are removed, to make them match `<tree-ish>` exactly. The
+	default is no-overlay mode.
+
+EXAMPLES
+--------
+
+The following sequence checks out the `master` branch, reverts
+the `Makefile` to two revisions back, deletes hello.c by
+mistake, and gets it back from the index.
+
+------------
+$ git switch master
+$ git restore --source master~2 Makefile  <1>
+$ rm -f hello.c
+$ git restore hello.c                   <2>
+------------
+
+<1> take a file out of another commit
+<2> restore hello.c from the index
+
+If you want to check out _all_ C source files out of the index,
+you can say
+
+------------
+$ git restore '*.c'
+------------
+
+Note the quotes around `*.c`.  The file `hello.c` will also be
+checked out, even though it is no longer in the working tree,
+because the file globbing is used to match entries in the index
+(not in the working tree by the shell).
+
+To restore all files in the current directory
+
+------------
+$ git restore .
+------------
+
+or to restore all working tree files with 'top' pathspec magic (see
+linkgit::gitglossary[7])
+
+------------
+$ git restore :/
+------------
+
+To restore a file in the index only (this is the same as using
+"git reset")
+
+------------
+$ git restore --index hello.c
+------------
+
+or you can restore both the index and the working tree
+
+------------
+$ git restore --source=HEAD --index --worktree hello.c
+------------
+
+SEE ALSO
+--------
+linkgit:git-checkout[1]
+
+GIT
+---
+Part of the linkgit:git[1] suite
